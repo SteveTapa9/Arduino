@@ -1,0 +1,211 @@
+#include <Wire.h>
+#include "RTClib.h"
+#include<NewPing.h>
+
+
+//Konfiguration
+
+
+#define Max_Dist 400
+#define FEUCHTIGKEIT_MINIMUM  500 // Hohe Zahl heißt trocken
+#define INTERVALL_PUMPE_CHECKUP  1 // Alle 1 tag Feuchtigkeit prüfen
+
+
+// Uhr
+RTC_DS1307 rtc;
+long lastPumpeCheckCycle = 0;
+
+
+// Digital Pins
+int Ventil1 = 2;
+int Ventil2 = 3;
+int Ventil3 = 4;
+int Ventil4 = 5;
+int RELAIS_LICHT = 6;
+int RELAIS_PUMPE = 7;
+int POWER_SENSOR = 8;
+int Tring_Pin = 9;
+int Echo_Pin = 10;
+int LED = 12;
+
+// Analog Pins
+int PIN_FEUCHTIGKEIT1 = A0;
+int PIN_FEUCHTIGKEIT2 = A1;
+int PIN_FEUCHTIGKEIT3 = A2;
+int PIN_FEUCHTIGKEIT4 = A3;
+
+NewPing sonar(Tring_Pin,Echo_Pin,Max_Dist);
+
+
+void setup() {
+
+  // Einrichtung der Uhr
+  Serial.begin(9600);
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);  
+  }
+
+
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+
+  // Einrichtung des Relais
+  // Relais schalten bei VCC/LOW
+  // Erstmal Alles Aus lassen
+  pinMode(RELAIS_PUMPE, OUTPUT);
+  digitalWrite(RELAIS_PUMPE, LOW);
+
+  pinMode(RELAIS_LICHT, OUTPUT);
+  digitalWrite(RELAIS_LICHT, LOW);
+
+  pinMode(POWER_SENSOR, OUTPUT);
+  digitalWrite(POWER_SENSOR, LOW);
+  
+    pinMode(Ventil1, OUTPUT);
+  digitalWrite(Ventil1, LOW);
+  
+      pinMode(Ventil2, OUTPUT);
+  digitalWrite(Ventil2, LOW);
+
+      pinMode(Ventil3, OUTPUT);
+  digitalWrite(Ventil3, LOW);
+
+      pinMode(Ventil4, OUTPUT);
+  digitalWrite(Ventil4, LOW);
+
+      pinMode(LED, OUTPUT);
+  digitalWrite(LED, LOW);
+}
+
+
+void loop() {
+
+
+  
+  long nowDay = rtc.now().day();
+  unsigned int distanceCM = sonar.ping_cm();
+
+  
+   if ((nowDay - lastPumpeCheckCycle) > INTERVALL_PUMPE_CHECKUP && distanceCM <=20 )
+   {
+          Serial.println("Zeit für Feuchtigkeits-Check");
+          
+          lastPumpeCheckCycle = nowDay;
+          
+          digitalWrite(POWER_SENSOR, HIGH);
+     delay(100);
+
+     
+          
+      // 1. Feuchtigkeit messen
+              int feuchtigkeitWert1 = analogRead(PIN_FEUCHTIGKEIT1);
+              Serial.print("Feuchtigkeit1: ");
+              Serial.print(feuchtigkeitWert1);
+              Serial.println();
+
+       // 1. ventil stuern
+              if (feuchtigkeitWert1 > FEUCHTIGKEIT_MINIMUM) {
+                Serial.println("Ventil 1 ist an");
+                digitalWrite(Ventil1, HIGH);
+              } else {
+                Serial.println("Ventil 1 ist aus");
+                digitalWrite(Ventil1, LOW);
+              }
+
+
+           
+          
+      // 2. Feuchtigkeit messen
+              int feuchtigkeitWert2 = analogRead(PIN_FEUCHTIGKEIT2);
+              Serial.print("Feuchtigkeit2: ");
+              Serial.print(feuchtigkeitWert2);
+              Serial.println();
+              
+     // 2. ventil stuern
+               if (feuchtigkeitWert2 > FEUCHTIGKEIT_MINIMUM) {
+                Serial.println("Ventil 2 ist an");
+                digitalWrite(Ventil2, HIGH);
+              } else {
+                Serial.println("Ventil 2 ist aus");
+                digitalWrite(Ventil2, LOW);
+              }
+
+
+    
+              
+      // 3. Feuchtigkeit messen
+              int feuchtigkeitWert3 = analogRead(PIN_FEUCHTIGKEIT3);
+              Serial.print("Feuchtigkeit3: ");
+              Serial.print(feuchtigkeitWert3);
+              Serial.println();
+      // 3. ventil stuern
+               if (feuchtigkeitWert3 > FEUCHTIGKEIT_MINIMUM) {
+                Serial.println("Ventil 3 ist an");
+                digitalWrite(Ventil3, HIGH);
+              } else {
+                Serial.println("Ventil 3 ist aus");
+                digitalWrite(Ventil3, LOW);
+              }
+          
+
+
+              
+      // 4. Feuchtigkeit messen
+              int feuchtigkeitWert4 = analogRead(PIN_FEUCHTIGKEIT4);
+              Serial.print("Feuchtigkeit4: ");
+              Serial.print(feuchtigkeitWert4);
+              Serial.println(); 
+      // 4. ventil stuern
+               if (feuchtigkeitWert4 > FEUCHTIGKEIT_MINIMUM) {
+                Serial.println("Ventil 4 ist an");
+                digitalWrite(Ventil4, HIGH);
+              } else {
+                Serial.println("Ventil 4 ist aus");
+                digitalWrite(Ventil4, LOW);
+              }
+
+
+      
+        // BUMPE stuern
+               if ( feuchtigkeitWert2 > FEUCHTIGKEIT_MINIMUM ||feuchtigkeitWert3 > FEUCHTIGKEIT_MINIMUM ||feuchtigkeitWert4 > FEUCHTIGKEIT_MINIMUM ) 
+               {
+                   Serial.println("Pumpe an");
+                   digitalWrite(RELAIS_PUMPE, HIGH);
+                   delay(2000);
+                   digitalWrite(RELAIS_PUMPE, LOW);
+                   Serial.println("Pumpe aus");
+              } else {
+                Serial.println("Pumpe nicht erforderlich");
+              } 
+              
+    }   else if ( distanceCM <= 20 && (nowDay - lastPumpeCheckCycle) <= INTERVALL_PUMPE_CHECKUP )     // Wenn kein wasser mehr gibt und zeitlich 
+      {
+         digitalWrite(POWER_SENSOR, LOW);
+            Serial.print("Letzte Feuchtigkeits-Check war um ---> ");
+            Serial.print(lastPumpeCheckCycle);
+             Serial.println();
+           
+           
+      } else 
+          {
+             Serial.print("WASSERTank ist  leer\n");
+             digitalWrite(LED, HIGH);
+             delay(500);
+             digitalWrite(LED, LOW);
+           
+            }
+
+   
+    // 6. Lampe checken
+    if (rtc.now().hour() >= 8 && rtc.now().hour() < 20) {
+        Serial.println("Licht an von 8 bis 22 Uhr ");
+           digitalWrite(RELAIS_LICHT, HIGH);
+    } else {
+            Serial.println("Licht aus von 22 bis 8 Uhr");
+        digitalWrite(RELAIS_LICHT, LOW);
+    }
+    
+ Serial.println();
+    delay(1000); // 10 Sekunden nichts tun
+ 
+}
